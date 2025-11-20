@@ -1,25 +1,17 @@
-export type LabType = 'bookshelf' | 'fridge' | 'closet' | 'whiskey';
 
-export interface Lab {
-  id: LabType;
-  icon: string;
-  title: string;
-  desc: string;
-  color: string;
-  gradient: string;
-}
+export type LabType = 'library' | 'fridge' | 'closet' | 'whiskey';
 
 export interface AnalysisResult {
   id: string;
   type: LabType;
+  timestamp: string;
   analysis: string;
-  images: string[];
-  createdAt: Date;
-  score?: number;
+  imageUrls: string[];
 }
 
-export interface UploadedImage {
-  file: File;
-  preview: string;
-  id: string;
+export interface LabInfo {
+  icon: string;
+  title: string;
+  description: string;
+  color: string;
 }
