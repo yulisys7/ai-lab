@@ -3,10 +3,11 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ImageUploaderProps {
-  images: File[];
-  onImagesChange: (images: File[]) => void;
+  images: string[];
+  onImagesChange: (images: string[]) => void;
   maxImages?: number;
 }
 
@@ -16,9 +17,33 @@ export default function ImageUploader({
   maxImages = 5,
 }: ImageUploaderProps) {
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      const newImages = [...images, ...acceptedFiles].slice(0, maxImages);
-      onImagesChange(newImages);
+    async (acceptedFiles: File[]) => {
+      console.log('📁 파일 드롭:', acceptedFiles.length, '개');
+      
+      const newImages = await Promise.all(
+        acceptedFiles.slice(0, maxImages - images.length).map(async (file) => {
+          console.log('🖼️ 파일 변환 중:', file.name, file.size, 'bytes');
+          
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              console.log('✅ 변환 완료:', result.substring(0, 50) + '...');
+              resolve(result);
+            };
+            reader.onerror = (error) => {
+              console.error('❌ 파일 읽기 실패:', error);
+              resolve(''); // 빈 문자열 반환
+            };
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+
+      const validImages = newImages.filter(img => img !== '');
+      console.log('✅ 유효한 이미지:', validImages.length, '개');
+      
+      onImagesChange([...images, ...validImages]);
     },
     [images, maxImages, onImagesChange]
   );
@@ -26,72 +51,80 @@ export default function ImageUploader({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'image/*': [] },
-    maxFiles: maxImages,
-    multiple: true,
+    maxFiles: maxImages - images.length,
+    disabled: images.length >= maxImages,
   });
 
   const removeImage = (index: number) => {
-    const newImages = images.filter((_, i) => i !== index);
-    onImagesChange(newImages);
+    onImagesChange(images.filter((_, i) => i !== index));
   };
 
   return (
     <div className="space-y-4">
+      {/* Dropzone */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${
+        className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
           isDragActive
-            ? 'border-white bg-white/10'
-            : 'border-white/30 hover:border-white/50 hover:bg-white/5'
+            ? 'border-purple-400 bg-purple-400/10'
+            : images.length >= maxImages
+            ? 'border-gray-600 bg-gray-800/50 cursor-not-allowed'
+            : 'border-gray-600 hover:border-purple-400 bg-white/5 hover:bg-white/10'
         }`}
       >
         <input {...getInputProps()} />
-        <Upload className="w-12 h-12 mx-auto mb-4 text-white/60" />
-        {isDragActive ? (
-          <p className="text-white text-lg">이미지를 여기에 놓으세요...</p>
+        <Upload
+          className={`w-12 h-12 mx-auto mb-4 ${
+            images.length >= maxImages ? 'text-gray-600' : 'text-purple-400'
+          }`}
+        />
+        {images.length >= maxImages ? (
+          <p className="text-gray-400">최대 {maxImages}장까지 업로드 가능합니다</p>
+        ) : isDragActive ? (
+          <p className="text-white">이미지를 여기에 놓으세요</p>
         ) : (
           <div>
-            <p className="text-white text-lg mb-2">
-              이미지를 드래그하거나 클릭해서 업로드
-            </p>
-            <p className="text-white/60 text-sm">
-              최대 {maxImages}개까지 업로드 가능
+            <p className="text-white mb-2">이미지를 드래그하거나 클릭해서 업로드</p>
+            <p className="text-sm text-gray-400">
+              최대 {maxImages}장 ({images.length}/{maxImages})
             </p>
           </div>
         )}
       </div>
 
-      {images.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {images.map((image, index) => (
-            <div
-              key={index}
-              className="relative group rounded-xl overflow-hidden border border-white/20"
-            >
-              <img
-                src={URL.createObjectURL(image)}
-                alt={`업로드 ${index + 1}`}
-                className="w-full h-40 object-cover"
-              />
-              <button
-                onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300"
+      {/* Image Preview */}
+      <AnimatePresence>
+        {images.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="grid grid-cols-2 md:grid-cols-5 gap-4"
+          >
+            {images.map((image, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="relative aspect-square rounded-lg overflow-hidden group"
               >
-                <X className="w-4 h-4" />
-              </button>
-              <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-2 backdrop-blur-sm">
-                {image.name}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {images.length > 0 && (
-        <div className="text-center text-white/60 text-sm">
-          {images.length}/{maxImages} 이미지 업로드됨
-        </div>
-      )}
+                <img
+                  src={image}
+                  alt={`Upload ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={() => removeImage(index)}
+                  className="absolute top-2 right-2 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

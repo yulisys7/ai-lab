@@ -1,257 +1,294 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Microscope, BookOpen, Refrigerator, Shirt, Wine } from 'lucide-react';
 import ImageUploader from './components/ImageUploader';
 import ResultCard from './components/ResultCard';
-import { LabType, AnalysisResult } from './types';
-import { saveToHistory, loadHistory } from './lib/utils';
+import LoadingProgress from './components/LoadingProgress';
+import ErrorModal from './components/ErrorModal';
+import ResultDisplay from './components/ResultDisplay';
+import { AnalysisResult, ErrorType } from './types';
 
-const labs = {
-  library: {
-    icon: '📚',
-    title: '그 남자의 서재',
-    description: '책장을 분석하여 당신의 지적 취향을 파악합니다',
+type LabType = 'bookshelf' | 'fridge' | 'closet' | 'whisky';
+
+const labs = [
+  {
+    id: 'bookshelf' as LabType,
+    name: '그 남자의 서재',
+    icon: BookOpen,
     color: 'from-amber-500 to-orange-600',
+    description: '책장으로 알아보는 당신의 내면',
   },
-  fridge: {
-    icon: '🧊',
-    title: '그 남자의 냉장고',
-    description: '냉장고 속 식재료로 당신의 라이프스타일을 분석합니다',
+  {
+    id: 'fridge' as LabType,
+    name: '그 남자의 냉장고',
+    icon: Refrigerator,
     color: 'from-blue-500 to-cyan-600',
+    description: '냉장고로 보는 라이프스타일',
   },
-  closet: {
-    icon: '👔',
-    title: '그 남자의 옷장',
-    description: '옷장을 통해 당신의 패션 감각과 성향을 파악합니다',
+  {
+    id: 'closet' as LabType,
+    name: '그 남자의 옷장',
+    icon: Shirt,
     color: 'from-purple-500 to-pink-600',
+    description: '옷장으로 파악하는 패션 감각',
   },
-  whiskey: {
-    icon: '🥃',
-    title: '그 남자의 위스키',
-    description: '위스키 컬렉션으로 당신의 취향과 품격을 분석합니다',
+  {
+    id: 'whisky' as LabType,
+    name: '그 남자의 위스키',
+    icon: Wine,
     color: 'from-yellow-600 to-amber-700',
+    description: '위스키 컬렉션으로 보는 취향',
   },
-};
+];
 
 export default function Home() {
-  const [selectedLab, setSelectedLab] = useState<LabType | null>(null);
-  const [images, setImages] = useState<File[]>([]);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState<AnalysisResult[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-
-  // 히스토리 불러오기
-  useState(() => {
-    setHistory(loadHistory());
-  });
+  const [selectedLab, setSelectedLab] = useState<LabType>('bookshelf');
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(1);
+  const [results, setResults] = useState<AnalysisResult[]>([]);
+  const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<{ type: ErrorType; message: string } | null>(null);
 
   const handleAnalyze = async () => {
-    if (!selectedLab || images.length === 0) return;
+    if (uploadedImages.length === 0) {
+      setError({ type: 'upload', message: '이미지를 먼저 업로드해주세요.' });
+      return;
+    }
 
-    setLoading(true);
-    setResult(null);
+    setIsAnalyzing(true);
+    setLoadingStep(1);
+    setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('labType', selectedLab);
-      images.forEach((image) => {
-        formData.append('images', image);
+      // 1단계: 이미지 검증
+      console.log('📸 업로드된 이미지:', {
+        count: uploadedImages.length,
+        sizes: uploadedImages.map(img => img.length),
+        firstImageStart: uploadedImages[0]?.substring(0, 30)
       });
 
+      // 2단계: 요청 데이터 준비
+      const requestData = {
+        images: uploadedImages,
+        labType: selectedLab,
+      };
+      
+      console.log('📦 요청 데이터 준비:', {
+        labType: requestData.labType,
+        imageCount: requestData.images.length
+      });
+
+      setLoadingStep(2);
+
+      // 3단계: API 호출
+      console.log('🚀 API 호출 시작...');
       const response = await fetch('/api/analyze', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
       });
 
-      if (!response.ok) {
-        throw new Error('분석 중 오류가 발생했습니다');
+      console.log('📡 응답 상태:', response.status, response.statusText);
+
+      setLoadingStep(3);
+
+      // 4단계: 응답 처리
+      const contentType = response.headers.get('content-type');
+      console.log('📄 응답 Content-Type:', contentType);
+
+      if (!contentType?.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('❌ JSON이 아닌 응답:', textResponse.substring(0, 200));
+        throw new Error('서버에서 올바른 응답을 받지 못했습니다.');
       }
 
       const data = await response.json();
+      console.log('✅ 응답 데이터:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || '분석 중 오류가 발생했습니다.');
+      }
+
+      // 5단계: 결과 저장
       const newResult: AnalysisResult = {
         id: Date.now().toString(),
-        type: selectedLab,
-        timestamp: new Date().toISOString(),
+        labType: selectedLab,
+        images: uploadedImages,
         analysis: data.analysis,
-        imageUrls: images.map((img) => URL.createObjectURL(img)),
+        timestamp: data.timestamp || new Date().toISOString(),
       };
 
-      setResult(newResult);
-      saveToHistory(newResult);
-      setHistory(loadHistory());
-    } catch (error) {
-      console.error('분석 오류:', error);
-      alert('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+      setResults((prev) => [newResult, ...prev]);
+      setCurrentResult(newResult);
+      setUploadedImages([]);
+
+      console.log('✅ 분석 완료!');
+
+    } catch (error: any) {
+      console.error('❌ 클라이언트 에러:', error);
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        setError({ type: 'network', message: '네트워크 연결을 확인해주세요.' });
+      } else if (error.message.includes('API')) {
+        setError({ type: 'api', message: error.message });
+      } else {
+        setError({ type: 'unknown', message: error.message });
+      }
     } finally {
-      setLoading(false);
+      setIsAnalyzing(false);
+      setLoadingStep(1);
     }
   };
 
-  const resetLab = () => {
-    setSelectedLab(null);
-    setImages([]);
-    setResult(null);
-  };
-
-  if (showHistory) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 md:p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-white flex items-center gap-3">
-              <span>📊</span>
-              분석 히스토리
-            </h1>
-            <button
-              onClick={() => setShowHistory(false)}
-              className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-300"
-            >
-              돌아가기
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {history.length === 0 ? (
-              <div className="col-span-full text-center py-20">
-                <p className="text-white/60 text-lg">아직 분석 기록이 없습니다</p>
-              </div>
-            ) : (
-              history.map((item) => (
-                <ResultCard
-                  key={item.id}
-                  result={item}
-                  labInfo={labs[item.type] || labs['library']}
-                />
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (selectedLab) {
-    const labInfo = labs[selectedLab];
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 md:p-8">
-        <div className="max-w-4xl mx-auto">
-          <button
-            onClick={resetLab}
-            className="mb-6 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-300 flex items-center gap-2"
-          >
-            <span>←</span>
-            실험실 선택으로 돌아가기
-          </button>
-
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 md:p-12 border border-white/20 shadow-2xl">
-            <div className="text-center mb-8">
-              <div className="text-6xl mb-4">{labInfo.icon}</div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
-                {labInfo.title}
-              </h1>
-              <p className="text-white/80 text-lg">{labInfo.description}</p>
-            </div>
-
-            {!result ? (
-              <div className="space-y-8">
-                <ImageUploader
-                  images={images}
-                  onImagesChange={setImages}
-                  maxImages={5}
-                />
-
-                <button
-                  onClick={handleAnalyze}
-                  disabled={images.length === 0 || loading}
-                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-                    images.length === 0 || loading
-                      ? 'bg-gray-500 cursor-not-allowed'
-                      : `bg-gradient-to-r ${labInfo.color} hover:scale-105 shadow-lg`
-                  } text-white`}
-                >
-                  {loading ? (
-                    <span className="flex items-center justify-center gap-3">
-                      <span className="animate-spin">⚗️</span>
-                      분석 중...
-                    </span>
-                  ) : (
-                    `분석 시작 (${images.length}/5)`
-                  )}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                  <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                    <span>🔬</span>
-                    분석 결과
-                  </h2>
-                  <div className="prose prose-invert max-w-none">
-                    <p className="text-white/90 whitespace-pre-line leading-relaxed">
-                      {result.analysis}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={resetLab}
-                  className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:scale-105 text-white rounded-xl font-bold text-lg transition-all duration-300 shadow-lg"
-                >
-                  새로운 분석 시작
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const selectedLabData = labs.find((lab) => lab.id === selectedLab)!;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 flex items-center justify-center gap-4">
-            <span>🧪</span>
-            AI 실험실
-          </h1>
-          <p className="text-white/80 text-xl">
-            당신의 일상을 AI가 분석합니다
-          </p>
-          <button
-            onClick={() => setShowHistory(true)}
-            className="mt-6 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-300"
-          >
-            📊 히스토리 보기
-          </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* Header */}
+      <header className="border-b border-white/10 bg-black/20 backdrop-blur-lg">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Microscope className="w-8 h-8 text-purple-400" />
+              <motion.div
+                className="absolute inset-0 bg-purple-400 blur-xl opacity-50"
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">AI 실험실</h1>
+              <p className="text-sm text-purple-300">사진으로 분석하는 당신의 이야기</p>
+            </div>
+          </div>
         </div>
+      </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {(Object.entries(labs) as [LabType, typeof labs[LabType]][]).map(([key, lab]) => (
-            <button
-              key={key}
-              onClick={() => setSelectedLab(key)}
-              className="group relative bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/20 hover:border-white/40 transition-all duration-300 hover:scale-105 hover:shadow-2xl"
-            >
-              <div className={`absolute inset-0 bg-gradient-to-r ${lab.color} opacity-0 group-hover:opacity-10 rounded-3xl transition-opacity duration-300`}></div>
-              
-              <div className="relative">
-                <div className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-300">
-                  {lab.icon}
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-3">
-                  {lab.title}
-                </h2>
-                <p className="text-white/70">
-                  {lab.description}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
+      <main className="container mx-auto px-4 py-8">
+        {/* Lab Selection */}
+        <section className="mb-8">
+          <h2 className="text-2xl font-bold text-white mb-4">실험실 선택</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {labs.map((lab) => {
+              const Icon = lab.icon;
+              const isSelected = selectedLab === lab.id;
+              return (
+                <motion.button
+                  key={lab.id}
+                  onClick={() => setSelectedLab(lab.id)}
+                  className={`relative p-6 rounded-2xl transition-all ${
+                    isSelected
+                      ? 'bg-white/20 ring-2 ring-white/50'
+                      : 'bg-white/5 hover:bg-white/10'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div
+                    className={`w-12 h-12 rounded-xl bg-gradient-to-br ${lab.color} flex items-center justify-center mb-3`}
+                  >
+                    <Icon className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-1">{lab.name}</h3>
+                  <p className="text-sm text-gray-400">{lab.description}</p>
+                  {isSelected && (
+                    <motion.div
+                      layoutId="selected-lab"
+                      className="absolute inset-0 border-2 border-white/50 rounded-2xl"
+                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Image Upload */}
+        <section className="mb-8">
+          <div
+            className={`rounded-3xl bg-gradient-to-br ${selectedLabData.color} p-1`}
+          >
+            <div className="bg-slate-900 rounded-3xl p-8">
+              <h2 className="text-2xl font-bold text-white mb-4">
+                {selectedLabData.name} 분석
+              </h2>
+              <ImageUploader
+                images={uploadedImages}
+                onImagesChange={setUploadedImages}
+                maxImages={5}
+              />
+              <motion.button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing || uploadedImages.length === 0}
+                className={`w-full mt-6 py-4 rounded-xl font-semibold text-white transition-all ${
+                  isAnalyzing || uploadedImages.length === 0
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : `bg-gradient-to-r ${selectedLabData.color} hover:shadow-lg hover:shadow-purple-500/50`
+                }`}
+                whileHover={
+                  !isAnalyzing && uploadedImages.length > 0 ? { scale: 1.02 } : {}
+                }
+                whileTap={
+                  !isAnalyzing && uploadedImages.length > 0 ? { scale: 0.98 } : {}
+                }
+              >
+                {isAnalyzing ? 'AI가 분석 중입니다...' : '분석 시작'}
+              </motion.button>
+            </div>
+          </div>
+        </section>
+
+        {/* Loading Progress */}
+        <AnimatePresence>
+          {isAnalyzing && (
+            <LoadingProgress currentStep={loadingStep} labName={selectedLabData.name} />
+          )}
+        </AnimatePresence>
+
+        {/* Current Result */}
+        <AnimatePresence>
+          {currentResult && !isAnalyzing && (
+            <ResultDisplay
+              result={currentResult}
+              onClose={() => setCurrentResult(null)}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* History */}
+        {results.length > 0 && !currentResult && (
+          <section>
+            <h2 className="text-2xl font-bold text-white mb-4">분석 히스토리</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {results.map((result) => (
+                <ResultCard
+                  key={result.id}
+                  result={result}
+                  onClick={() => setCurrentResult(result)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={!!error}
+        errorType={error?.type || 'unknown'}
+        message={error?.message || ''}
+        onClose={() => setError(null)}
+        onRetry={() => {
+          setError(null);
+          handleAnalyze();
+        }}
+      />
     </div>
   );
 }
