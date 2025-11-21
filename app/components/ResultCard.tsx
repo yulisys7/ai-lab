@@ -9,7 +9,15 @@ interface ResultCardProps {
   onClick: () => void;
 }
 
-const labConfig = {
+type LabType = 'bookshelf' | 'fridge' | 'closet' | 'whisky';
+
+const labConfig: Record<LabType, {
+  icon: string;
+  name: string;
+  color: string;
+  bgGradient: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = {
   bookshelf: {
     icon: '📚',
     name: '그 남자의 서재',
@@ -41,7 +49,7 @@ const labConfig = {
 };
 
 export default function ResultCard({ result, onClick }: ResultCardProps) {
-  const labInfo = labConfig[result.labType];
+  const labInfo = labConfig[result.labType as LabType];
   const IconComponent = labInfo.Icon;
 
   const formatDate = (timestamp: string) => {

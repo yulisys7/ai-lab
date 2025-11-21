@@ -59,10 +59,12 @@ export default function ImageUploader({
     onImagesChange(images.filter((_, i) => i !== index));
   };
 
+  const canUpload = images.length < maxImages;
+
   return (
     <div className="space-y-6">
       {/* Dropzone */}
-      <motion.div
+      <div
         {...getRootProps()}
         className={`
           relative border-2 border-dashed rounded-2xl p-12 text-center 
@@ -74,8 +76,9 @@ export default function ImageUploader({
             : 'border-gray-600/50 hover:border-purple-400/50 bg-white/5 hover:bg-white/10'
           }
         `}
-        whileHover={images.length < maxImages ? { scale: 1.01 } : {}}
-        whileTap={images.length < maxImages ? { scale: 0.99 } : {}}
+        style={{
+          transform: canUpload && isDragActive ? 'scale(1.02)' : 'scale(1)',
+        }}
       >
         <input {...getInputProps()} />
         
@@ -84,16 +87,18 @@ export default function ImageUploader({
         
         {/* Content */}
         <div className="relative z-10">
-          <motion.div
-            animate={isDragActive ? { scale: [1, 1.2, 1] } : {}}
-            transition={{ duration: 0.5, repeat: isDragActive ? Infinity : 0 }}
+          <div
+            style={{
+              transform: isDragActive ? 'scale(1.2)' : 'scale(1)',
+              transition: 'transform 0.3s ease',
+            }}
           >
             <div className={`
               w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center
               bg-gradient-to-br transition-all duration-300
               ${images.length >= maxImages 
                 ? 'from-gray-600 to-gray-700' 
-                : 'from-purple-500 to-blue-500 group-hover:shadow-2xl group-hover:shadow-purple-500/50'
+                : 'from-purple-500 to-blue-500'
               }
             `}>
               {images.length >= maxImages ? (
@@ -102,7 +107,7 @@ export default function ImageUploader({
                 <Upload className="w-10 h-10 text-white" />
               )}
             </div>
-          </motion.div>
+          </div>
 
           {images.length >= maxImages ? (
             <div>
@@ -139,7 +144,7 @@ export default function ImageUploader({
             </div>
           )}
         </div>
-      </motion.div>
+      </div>
 
       {/* Image Preview Grid */}
       <AnimatePresence mode="popLayout">
@@ -153,12 +158,12 @@ export default function ImageUploader({
             {images.map((image, index) => (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, scale: 0.8, rotateY: 90 }}
-                animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                exit={{ opacity: 0, scale: 0.8, rotateY: -90 }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                whileHover={{ scale: 1.05, zIndex: 10 }}
                 transition={{ type: 'spring', bounce: 0.4 }}
                 className="relative aspect-square rounded-xl overflow-hidden group"
-                whileHover={{ scale: 1.05, zIndex: 10 }}
               >
                 {/* Image */}
                 <img
@@ -174,17 +179,15 @@ export default function ImageUploader({
                       <ImageIcon className="w-3 h-3" />
                       {index + 1}
                     </div>
-                    <motion.button
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         removeImage(index);
                       }}
-                      className="w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg"
-                      whileHover={{ scale: 1.1, rotate: 90 }}
-                      whileTap={{ scale: 0.9 }}
+                      className="w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-colors"
                     >
                       <X className="w-4 h-4 text-white" />
-                    </motion.button>
+                    </button>
                   </div>
                 </div>
 

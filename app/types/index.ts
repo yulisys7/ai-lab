@@ -1,17 +1,9 @@
-
-export type LabType = 'library' | 'fridge' | 'closet' | 'whiskey';
-
 export interface AnalysisResult {
   id: string;
-  type: LabType;
-  timestamp: string;
+  labType: string;
+  images: string[];
   analysis: string;
-  imageUrls: string[];
+  timestamp: string;
 }
 
-export interface LabInfo {
-  icon: string;
-  title: string;
-  description: string;
-  color: string;
-}
+export type ErrorType = 'network' | 'api' | 'upload' | 'unknown';
