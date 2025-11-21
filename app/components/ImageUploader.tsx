@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ImageUploaderProps {
@@ -33,7 +33,7 @@ export default function ImageUploader({
             };
             reader.onerror = (error) => {
               console.error('❌ 파일 읽기 실패:', error);
-              resolve(''); // 빈 문자열 반환
+              resolve('');
             };
             reader.readAsDataURL(file);
           });
@@ -60,66 +60,136 @@ export default function ImageUploader({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Dropzone */}
-      <div
+      <motion.div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-          isDragActive
-            ? 'border-purple-400 bg-purple-400/10'
+        className={`
+          relative border-2 border-dashed rounded-2xl p-12 text-center 
+          transition-all duration-300 cursor-pointer overflow-hidden
+          ${isDragActive
+            ? 'border-purple-400 bg-purple-400/10 scale-[1.02]'
             : images.length >= maxImages
-            ? 'border-gray-600 bg-gray-800/50 cursor-not-allowed'
-            : 'border-gray-600 hover:border-purple-400 bg-white/5 hover:bg-white/10'
-        }`}
+            ? 'border-gray-700 bg-gray-800/30 cursor-not-allowed'
+            : 'border-gray-600/50 hover:border-purple-400/50 bg-white/5 hover:bg-white/10'
+          }
+        `}
+        whileHover={images.length < maxImages ? { scale: 1.01 } : {}}
+        whileTap={images.length < maxImages ? { scale: 0.99 } : {}}
       >
         <input {...getInputProps()} />
-        <Upload
-          className={`w-12 h-12 mx-auto mb-4 ${
-            images.length >= maxImages ? 'text-gray-600' : 'text-purple-400'
-          }`}
-        />
-        {images.length >= maxImages ? (
-          <p className="text-gray-400">최대 {maxImages}장까지 업로드 가능합니다</p>
-        ) : isDragActive ? (
-          <p className="text-white">이미지를 여기에 놓으세요</p>
-        ) : (
-          <div>
-            <p className="text-white mb-2">이미지를 드래그하거나 클릭해서 업로드</p>
-            <p className="text-sm text-gray-400">
-              최대 {maxImages}장 ({images.length}/{maxImages})
-            </p>
-          </div>
-        )}
-      </div>
+        
+        {/* Background Effect */}
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-blue-500/5" />
+        
+        {/* Content */}
+        <div className="relative z-10">
+          <motion.div
+            animate={isDragActive ? { scale: [1, 1.2, 1] } : {}}
+            transition={{ duration: 0.5, repeat: isDragActive ? Infinity : 0 }}
+          >
+            <div className={`
+              w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center
+              bg-gradient-to-br transition-all duration-300
+              ${images.length >= maxImages 
+                ? 'from-gray-600 to-gray-700' 
+                : 'from-purple-500 to-blue-500 group-hover:shadow-2xl group-hover:shadow-purple-500/50'
+              }
+            `}>
+              {images.length >= maxImages ? (
+                <Check className="w-10 h-10 text-white" />
+              ) : (
+                <Upload className="w-10 h-10 text-white" />
+              )}
+            </div>
+          </motion.div>
 
-      {/* Image Preview */}
-      <AnimatePresence>
+          {images.length >= maxImages ? (
+            <div>
+              <p className="text-lg font-semibold text-white mb-2">
+                최대 업로드 완료
+              </p>
+              <p className="text-sm text-gray-400">
+                {maxImages}장의 이미지가 준비되었습니다
+              </p>
+            </div>
+          ) : isDragActive ? (
+            <div>
+              <p className="text-lg font-semibold text-white mb-2">
+                여기에 이미지를 놓으세요
+              </p>
+              <p className="text-sm text-purple-300">
+                파일을 드롭하면 자동으로 업로드됩니다
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-lg font-semibold text-white mb-2">
+                이미지를 드래그하거나 클릭해서 업로드
+              </p>
+              <p className="text-sm text-gray-400 mb-4">
+                JPG, PNG, WebP 등 이미지 파일 지원
+              </p>
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <div className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm">
+                  <span className="text-purple-300 font-semibold">{images.length}</span>
+                  <span className="text-gray-400"> / {maxImages}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Image Preview Grid */}
+      <AnimatePresence mode="popLayout">
         {images.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
             className="grid grid-cols-2 md:grid-cols-5 gap-4"
           >
             {images.map((image, index) => (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="relative aspect-square rounded-lg overflow-hidden group"
+                initial={{ opacity: 0, scale: 0.8, rotateY: 90 }}
+                animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+                exit={{ opacity: 0, scale: 0.8, rotateY: -90 }}
+                transition={{ type: 'spring', bounce: 0.4 }}
+                className="relative aspect-square rounded-xl overflow-hidden group"
+                whileHover={{ scale: 1.05, zIndex: 10 }}
               >
+                {/* Image */}
                 <img
                   src={image}
                   alt={`Upload ${index + 1}`}
                   className="w-full h-full object-cover"
                 />
-                <button
-                  onClick={() => removeImage(index)}
-                  className="absolute top-2 right-2 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
+                
+                {/* Overlay on Hover */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-white text-xs bg-black/50 backdrop-blur-sm px-2 py-1 rounded-full">
+                      <ImageIcon className="w-3 h-3" />
+                      {index + 1}
+                    </div>
+                    <motion.button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeImage(index);
+                      }}
+                      className="w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg"
+                      whileHover={{ scale: 1.1, rotate: 90 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </motion.button>
+                  </div>
+                </div>
+
+                {/* Border Gradient */}
+                <div className="absolute inset-0 border-2 border-transparent group-hover:border-purple-400/50 rounded-xl transition-all duration-300" />
               </motion.div>
             ))}
           </motion.div>
